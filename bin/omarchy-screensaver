@@ -8,6 +8,7 @@ screensaver_in_focus() {
 
 exit_screensaver() {
   hyprctl eval 'hl.config({ cursor = { invisible = false } })' &>/dev/null || hyprctl keyword cursor:invisible false &>/dev/null || true
+  [[ -n ${theme_art_copy:-} ]] && rm -f "$theme_art_copy"
   pkill -x ttfx 2>/dev/null
   pkill -f '[o]rg.omarchy.screensaver' 2>/dev/null
   exit 0
@@ -35,8 +36,20 @@ wait_for_terminal_resize() {
 
 wait_for_terminal_resize
 
+# A theme can ship its own screensaver.txt. It shows only while the branding
+# file is still Omarchy's default, so art the user chose always wins. A theme
+# can come from a stranger's git repo, so its control characters are dropped
+# before ttfx writes the art to the terminal.
+art=~/.config/omarchy/branding/screensaver.txt
+theme_art=~/.local/state/omarchy/current/theme/screensaver.txt
+if [[ -f $theme_art ]] && { [[ ! -f $art ]] || cmp -s "$art" "$OMARCHY_PATH/logo.txt"; }; then
+  theme_art_copy=$(mktemp "${XDG_RUNTIME_DIR:-/tmp}/omarchy-screensaver.XXXXXX")
+  LC_ALL=C tr -d '\000-\011\013-\037\177' <"$theme_art" >"$theme_art_copy"
+  art=$theme_art_copy
+fi
+
 while true; do
-  ttfx -i ~/.config/omarchy/branding/screensaver.txt \
+  ttfx -i "$art" \
     --frame-rate 120 --canvas-width 0 --canvas-height 0 --reuse-canvas --anchor-canvas c --anchor-text c\
     --random-effect --no-eol --no-restore-cursor &
 
